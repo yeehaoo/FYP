@@ -26,18 +26,105 @@ public class MainActivity extends AppCompatActivity {
     Button btnFanOn, btnFanOff, btnLightOn, btnLightOff, btnDisconnect;
     MqttAndroidClient client;
 
+    private void findViews() {
+        tvStatus = findViewById(R.id.tvStatus);
+        btnFanOn = findViewById(R.id.btnFanOn);
+        tvTemp = findViewById(R.id.tvTemp);
+        tvLight = findViewById(R.id.tvLight);
+        btnFanOff = findViewById(R.id.btnFanOff);
+        btnLightOff = findViewById(R.id.btnLightOff);
+        btnLightOn = findViewById(R.id.btnLightOn);
+        btnDisconnect = findViewById(R.id.btnDisconnect);
+    }
+
+    private boolean connect(MqttConnectOptions options) {
+        try {
+            IMqttToken token = client.connect(options);
+            token.setActionCallback(new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Toast.makeText(getApplicationContext(), "Connected", Toast.LENGTH_SHORT).show();
+                    tvStatus.setText("Connnected");
+                    Log.d("connection", "success");
+                }
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    // Something went wrong e.g. connection timeout or firewall problems
+                    Toast.makeText(getApplicationContext(), "Error Connecting", Toast.LENGTH_SHORT).show();
+                    tvStatus.setText("Error Connecting");
+                    Log.d("connection", "failure");
+                }
+            });
+
+            if(tvStatus.getText().toString().equals("Connected")) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        } catch (MqttException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private void subscribe(String topic) {
+        try {
+            IMqttToken subToken = client.subscribe(topic, 1);
+            subToken.setActionCallback(new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Toast.makeText(getApplicationContext(), "Subscribed.", Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken,
+                                      Throwable exception) {
+                    Toast.makeText(getApplicationContext(), "Subscription Error", Toast.LENGTH_SHORT).show();
+                }
+            });
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void publish(String topic, String payload, byte[] encodedPayload) {
+        try {
+            encodedPayload = payload.getBytes("UTF-8");
+            MqttMessage message = new MqttMessage(encodedPayload);
+            client.publish(topic, message);
+            Toast.makeText(getApplicationContext(), "Publish Success", Toast.LENGTH_SHORT).show();
+        } catch (UnsupportedEncodingException | MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void disconnect(){
+        try {
+            IMqttToken disconToken = client.disconnect();
+            disconToken.setActionCallback(new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Toast.makeText(getApplicationContext(), "Disconnected", Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken,
+                                      Throwable exception) {
+                    Toast.makeText(getApplicationContext(), "Disconnection Failed", Toast.LENGTH_SHORT).show();
+                }
+            });
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        tvStatus = findViewById(R.id.tvStatus);
-        btnFanOn = findViewById(R.id.btnFanOn);
-        tvTemp = findViewById(R.id.tvTemp);
-        btnFanOff = findViewById(R.id.btnFanOff);
-        btnLightOff = findViewById(R.id.btnLightOff);
-        btnLightOn = findViewById(R.id.btnLightOn);
-        btnDisconnect = findViewById(R.id.btnDisconnect);
+        findViews();
 
         String clientId = MqttClient.generateClientId();
         client =
@@ -47,160 +134,54 @@ public class MainActivity extends AppCompatActivity {
         options.setMqttVersion(MqttConnectOptions.MQTT_VERSION_3_1);
         options.setUserName("jaiselhr");
         options.setPassword("eRlY3GGca4OZ".toCharArray());
-        try {
-            IMqttToken token = client.connect(options);
-            token.setActionCallback(new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    // We are connected
-                    Toast.makeText(getApplicationContext(), "Connected", Toast.LENGTH_SHORT).show();
-                    tvStatus.setText("Connnected");
-                    Log.d("connection", "success");
 
-                    int qos = 0;
-                    try {
-                        IMqttToken subToken = client.subscribe("system/commands/temperature", qos);
-                        subToken.setActionCallback(new IMqttActionListener() {
-                            @Override
-                            public void onSuccess(IMqttToken asyncActionToken) {
-                                // The message was published
-                                Toast.makeText(getApplicationContext(), "Subscribed 1", Toast.LENGTH_SHORT).show();
-                            }
-
-                            @Override
-                            public void onFailure(IMqttToken asyncActionToken,
-                                                  Throwable exception) {
-                                // The subscription could not be performed, maybe the user was not
-                                // authorized to subscribe on the specified topic e.g. using wildcards
-
-                            }
-                        });
-                    } catch (MqttException e) {
-                        e.printStackTrace();
-                    }
-
-                    try {
-                        IMqttToken subToken = client.subscribe("system/commands/light", qos);
-                        subToken.setActionCallback(new IMqttActionListener() {
-                            @Override
-                            public void onSuccess(IMqttToken asyncActionToken) {
-                                // The message was published
-                                Toast.makeText(getApplicationContext(), "Subscribed 2", Toast.LENGTH_SHORT).show();
-                            }
-
-                            @Override
-                            public void onFailure(IMqttToken asyncActionToken,
-                                                  Throwable exception) {
-                                // The subscription could not be performed, maybe the user was not
-                                // authorized to subscribe on the specified topic e.g. using wildcards
-
-                            }
-                        });
-                    } catch (MqttException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    // Something went wrong e.g. connection timeout or firewall problems
-                    Toast.makeText(getApplicationContext(), "Error Connecting", Toast.LENGTH_SHORT).show();
-                    tvStatus.setText("Error Connecting");
-                    Log.d("connection", "failure");
-                }
-            });
-        } catch (MqttException e) {
-            e.printStackTrace();
+        if(connect(options)) {
+            subscribe("system/data/temperature");
+            subscribe("system/data/light");
         }
-
-
 
         btnFanOn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String topic = "system/commands/temperature";
-                String payload = "tempAbnormal";
-                byte[] encodedPayload = new byte[0];
-                try {
-                    encodedPayload = payload.getBytes("UTF-8");
-                    MqttMessage message = new MqttMessage(encodedPayload);
-                    client.publish(topic, message);
-                    Toast.makeText(getApplicationContext(), "Published 1", Toast.LENGTH_SHORT).show();
-                } catch (UnsupportedEncodingException | MqttException e) {
-                    e.printStackTrace();
-                }
+            String topic = "system/commands/temperature";
+            String payload = "tempAbnormal";
+            byte[] encodedPayload = new byte[0];
+            publish(topic, payload, encodedPayload);
             }
         });
 
         btnFanOff.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String topic = "system/commands/temperature";
-                String payload = "tempNormal";
-                byte[] encodedPayload = new byte[0];
-                try {
-                    encodedPayload = payload.getBytes("UTF-8");
-                    MqttMessage message = new MqttMessage(encodedPayload);
-                    client.publish(topic, message);
-                    Toast.makeText(getApplicationContext(), "Published 2", Toast.LENGTH_SHORT).show();
-                } catch (UnsupportedEncodingException | MqttException e) {
-                    e.printStackTrace();
-                }
+            String topic = "system/commands/temperature";
+            String payload = "tempNormal";
+            byte[] encodedPayload = new byte[0];
+            publish(topic, payload, encodedPayload);
             }
         });
         btnLightOn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String topic = "system/commands/light";
-                String payload = "lightOn";
-                byte[] encodedPayload = new byte[0];
-                try {
-                    encodedPayload = payload.getBytes("UTF-8");
-                    MqttMessage message = new MqttMessage(encodedPayload);
-                    client.publish(topic, message);
-                    Toast.makeText(getApplicationContext(), "Published 3", Toast.LENGTH_SHORT).show();
-                } catch (UnsupportedEncodingException | MqttException e) {
-                    e.printStackTrace();
-                }
+            String topic = "system/commands/light";
+            String payload = "lightOn";
+            byte[] encodedPayload = new byte[0];
+            publish(topic, payload, encodedPayload);
             }
         });
         btnLightOff.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String topic = "system/commands/light";
-                String payload = "lightOff";
-                byte[] encodedPayload = new byte[0];
-                try {
-                    encodedPayload = payload.getBytes("UTF-8");
-                    MqttMessage message = new MqttMessage(encodedPayload);
-                    client.publish(topic, message);
-                    Toast.makeText(getApplicationContext(), "Published 4", Toast.LENGTH_SHORT).show();
-                } catch (UnsupportedEncodingException | MqttException e) {
-                    e.printStackTrace();
-                }
+            String topic = "system/commands/light";
+            String payload = "lightOff";
+            byte[] encodedPayload = new byte[0];
+            publish(topic, payload, encodedPayload);
             }
         });
 
         btnDisconnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                try {
-                    IMqttToken disconToken = client.disconnect();
-                    disconToken.setActionCallback(new IMqttActionListener() {
-                        @Override
-                        public void onSuccess(IMqttToken asyncActionToken) {
-                            // we are now successfully disconnected
-                        }
-
-                        @Override
-                        public void onFailure(IMqttToken asyncActionToken,
-                                              Throwable exception) {
-                            // something went wrong, but probably we are disconnected anyway
-                        }
-                    });
-                } catch (MqttException e) {
-                    e.printStackTrace();
-                }
+            disconnect();
             }
         });
 
@@ -212,10 +193,10 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void messageArrived(String topic, MqttMessage message) throws Exception {
-                if(topic.toString().equals("system/commands/light")){
+                if(topic.toString().equals("system/data/light")){
                     tvLight.setText(message.toString());
                 }
-                else if (topic.toString().equals("system/commands/temperature")) {
+                else if (topic.toString().equals("system/data/temperature")) {
                     tvTemp.setText(message.toString());
                 }
             }
